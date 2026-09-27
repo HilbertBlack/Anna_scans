@@ -24,15 +24,172 @@ let modelParams = {
     lightingPreset: 'studio'
 };
 
+/* Configurable Default Model Path Settings */
+const DEFAULT_MODEL_NAME = 'sports_board'; // Change this to match your folder/file name
+const DEFAULT_MODEL_PATH = `./models/${DEFAULT_MODEL_NAME}/${DEFAULT_MODEL_NAME}.fbx`;
+
+
+// GitHub Repository Configuration
+const GITHUB_USER = 'HilbertBlack';
+const GITHUB_REPO = 'Anna_scans';
+const GITHUB_BRANCH = 'main'; // or 'master'
+
 window.onload = function() {
     initScene();
     setupLights();
     setupHelpers();
     setupDragAndDrop();
     setupEventListeners();
-    loadPreset('torusKnot');
+    
+    // Automatically load the default FBX model from local directory
+    //loadDefaultFBXModel(DEFAULT_MODEL_PATH, DEFAULT_MODEL_NAME);
+    
+    // Dynamically search and load from GitHub directory
+    autoLoadFromGitHubFolder();
+
     animate();
 };
+
+/**
+ * Searches the GitHub repository /models directory via GitHub API 
+ * and automatically loads the first 3D model found.
+ */
+async function autoLoadFromGitHubFolder() {
+    showLoader(true, "Scanning models directory on GitHub...");
+
+    const apiUrl = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/models`;
+
+    try {
+        const response = await fetch(apiUrl);
+        if (!response.ok) {
+            throw new Error(`GitHub API returned status ${response.status}`);
+        }
+
+        const files = await response.json();
+
+        // 1. Check for 3D model files directly inside /models/
+        let targetFile = files.find(f => f.type === 'file' && /\.(fbx|glb|gltf|obj|stl)$/i.test(f.name));
+
+        // 2. If models are inside subfolders (e.g. /models/character/character.fbx)
+        if (!targetFile) {
+            const subfolders = files.filter(f => f.type === 'dir');
+            for (const folder of subfolders) {
+                const subResponse = await fetch(folder.url);
+                if (subResponse.ok) {
+                    const subFiles = await subResponse.json();
+                    targetFile = subFiles.find(f => f.type === 'file' && /\.(fbx|glb|gltf|obj|stl)$/i.test(f.name));
+                    if (targetFile) break;
+                }
+            }
+        }
+
+        if (targetFile) {
+            showLoader(true, `Downloading ${targetFile.name}...`);
+            
+            // Download file blob from GitHub Raw / download_url
+            const fileResponse = await fetch(targetFile.download_url);
+            const blob = await fileResponse.blob();
+            const modelFile = new File([blob], targetFile.name);
+
+            const ext = targetFile.name.split('.').pop().toLowerCase();
+
+            if (ext === 'fbx') loadFBXFile(modelFile);
+            else if (ext === 'glb' || ext === 'gltf') loadGLTFFile(modelFile);
+            else if (ext === 'obj') loadOBJFile(modelFile);
+            else if (ext === 'stl') loadSTLFile(modelFile);
+
+        } else {
+            showToast("No 3D model found in GitHub /models folder. Loading fallback.");
+            loadPreset('torusKnot');
+        }
+
+    } catch (err) {
+        console.warn("Could not fetch model list from GitHub API. Trying direct relative fallback...", err);
+        // Fallback for local testing or if rate-limited by GitHub API
+        loadRelativeFallback();
+    }
+}
+
+/**
+ * Fallback mechanism if API fails or running locally
+ */
+async function loadRelativeFallback() {
+    const fallbackPath = './models/character/character.fbx';
+    try {
+        const fileResponse = await fetch(fallbackPath);
+        if (fileResponse.ok) {
+            const blob = await fileResponse.blob();
+            const modelFile = new File([blob], 'character.fbx');
+            loadFBXFile(modelFile);
+        } else {
+            loadPreset('torusKnot');
+        }
+    } catch {
+        loadPreset('torusKnot');
+    }
+}
+
+/**
+ * Loads an FBX model automatically from a relative folder path
+ * Path structure: ./models/<model_name>/<model_name>.fbx
+ */
+function loadDefaultFBXModel(filePath, modelName) {
+    showLoader(true, `Loading default model (${modelName}.fbx)...`);
+
+    const loader = new THREE.FBXLoader();
+
+    // Set up texture path modifier so textures inside ./models/<model_name>/ are resolved automatically
+    const manager = new THREE.LoadingManager();
+    const folderPath = filePath.substring(0, filePath.lastIndexOf('/') + 1);
+    
+    manager.setURLModifier((url) => {
+        // If texture URL is relative, prepend the model's folder path
+        if (!url.startsWith('blob:') && !url.startsWith('data:') && !url.startsWith('http')) {
+            const fileName = url.split('/').pop();
+            return `${folderPath}${fileName}`;
+        }
+        return url;
+    });
+    
+    loader.manager = manager;
+
+    loader.load(
+        filePath,
+        (fbx) => {
+            fbx.name = `${modelName}.fbx`;
+            removeCurrentModel();
+
+            // 1. First add model to scene (stores original materials)
+            addModelToScene(fbx);
+
+            // 2. Extract and link embedded or folder textures
+            autoExtractAndApplyTextures(fbx);
+
+            // 3. Setup animations if present
+            setupAnimations(fbx, fbx.animations);
+
+            // 4. Force apply active render mode (Unlit / Ambient PBR / Standard)
+            applyRenderMode();
+
+            showLoader(false);
+            showToast(`Loaded: ${modelName}.fbx`);
+        },
+        (xhr) => {
+            if (xhr.lengthComputable) {
+                const percent = (xhr.loaded / xhr.total) * 100;
+                const loaderBar = document.getElementById('loaderBar');
+                if (loaderBar) loaderBar.style.width = `${percent}%`;
+            }
+        },
+        (err) => {
+            showLoader(false);
+            console.warn(`Could not find or load model at ${filePath}. Falling back to preset...`, err);
+            showToast(`Model not found at ${filePath}. Loading fallback preset.`);
+            // Fallback to Cyber Knot if path doesn't exist yet
+            loadPreset('torusKnot');
+        }
+    );
+}
 
 function initScene() {
     const container = document.getElementById('dropZone');
