@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Model Studio - Multi-Format & Texture Inspector</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            500: '#06b6d4',
+                            600: '#0891b2',
+                            700: '#0e7490',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- FontAwesome Icons & Google Fonts -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <!-- Custom Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Three.js Core Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- fflate (Decompression for FBXLoader) -->
+    <script src="https://cdn.jsdelivr.net/npm/fflate@0.7.4/umd/index.min.js"></script>
+
+    <!-- Three.js Loaders & Controls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/MTLLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+</head>
+<body class="h-screen w-screen flex flex-col antialiased select-none bg-slate-950 text-slate-100 overflow-hidden">
+
+    <header class="h-14 glass-panel border-b border-slate-800/80 px-4 flex items-center justify-between z-20 shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                <i class="fa-solid fa-cube text-white text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-sm tracking-wide text-white flex items-center gap-2">
+                    NEXUS <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-normal">FBX & GLB Studio</span>
+                </h1>
+                <p class="text-[10px] text-slate-400 hidden sm:block">Automated Texture Extraction for FBX & GLB / GLTF 3D Models</p>
+            </div>
+        </div>
+
+        <!-- Sample Models Preset Selector -->
+        <div class="hidden lg:flex items-center gap-1.5 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
+            <span class="text-xs text-slate-400 px-2 font-medium">Presets:</span>
+            <button onclick="loadPreset('torusKnot')" class="preset-btn px-2.5 py-1 text-xs rounded-lg bg-slate-800 text-cyan-300 border border-slate-700/50 flex items-center gap-1.5 transition" data-preset="torusKnot">
+                <i class="fa-solid fa-infinity text-cyan-400"></i> Cyber Knot
+            </button>
+            <button onclick="loadPreset('cyberHelmet')" class="preset-btn px-2.5 py-1 text-xs rounded-lg hover:bg-cyan-600/20 text-slate-400 hover:text-cyan-300 border border-transparent flex items-center gap-1.5 transition" data-preset="cyberHelmet">
+                <i class="fa-solid fa-head-side-virus text-indigo-400"></i> Sci-Fi Helm
+            </button>
+            <button onclick="loadPreset('texturedSphere')" class="preset-btn px-2.5 py-1 text-xs rounded-lg hover:bg-cyan-600/20 text-slate-400 hover:text-cyan-300 border border-transparent flex items-center gap-1.5 transition" data-preset="texturedSphere">
+                <i class="fa-solid fa-globe text-blue-400"></i> Textured Earth
+            </button>
+        </div>
+
+        <!-- Action Tools -->
+        <div class="flex items-center gap-2">
+            <label class="cursor-pointer glass-button hover:border-cyan-500/50 text-xs font-medium px-3 py-1.5 rounded-lg text-white flex items-center gap-2 shadow-sm transition">
+                <i class="fa-solid fa-folder-open text-cyan-400"></i>
+                <span class="hidden sm:inline">Import FBX / GLB</span>
+                <input type="file" id="fileInput" multiple accept=".fbx,.glb,.gltf,.obj,.stl,.png,.jpg,.jpeg,.webp" class="hidden" onchange="handleFileInput(event)">
+            </label>
+
+            <button onclick="captureSnapshot()" title="Capture High-Res Image" class="glass-button text-xs p-2 rounded-lg text-slate-300 hover:text-white">
+                <i class="fa-solid fa-camera"></i>
+            </button>
+
+            <button onclick="toggleFullscreen()" title="Toggle Fullscreen" class="glass-button text-xs p-2 rounded-lg text-slate-300 hover:text-white">
+                <i class="fa-solid fa-expand" id="fullscreenIcon"></i>
+            </button>
+        </div>
+    </header>
+
+    <div class="flex-1 relative flex overflow-hidden">
+
+        <div id="dropZone" class="w-full h-full relative cursor-grab active:cursor-grabbing transition-all">
+            <canvas id="threeCanvas" class="w-full h-full block"></canvas>
+
+            <div id="loader" class="absolute inset-0 bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center gap-3 z-30 transition-opacity duration-300 opacity-0 pointer-events-none">
+                <div class="relative flex items-center justify-center">
+                    <div class="w-16 h-16 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin"></div>
+                    <i class="fa-solid fa-cube text-cyan-400 absolute text-lg"></i>
+                </div>
+                <p id="loaderText" class="text-sm font-medium text-slate-300">Parsing 3D Mesh & Textures...</p>
+                <div class="w-56 bg-slate-800 h-1.5 rounded-full overflow-hidden border border-slate-700/80">
+                    <div id="loaderBar" class="bg-cyan-500 h-full w-0 transition-all duration-200"></div>
+                </div>
+            </div>
+
+            <div id="toast" class="absolute top-4 left-1/2 -translate-x-1/2 glass-panel px-4 py-2 rounded-xl text-xs font-medium text-cyan-300 border border-cyan-500/30 shadow-2xl flex items-center gap-2 transition-all duration-300 opacity-0 pointer-events-none transform -translate-y-2 z-40">
+                <i class="fa-solid fa-circle-info"></i>
+                <span id="toastMsg">Ready</span>
+            </div>
+
+            <div id="dragDropPrompt" class="absolute inset-8 border-2 border-dashed border-cyan-500/30 rounded-2xl bg-cyan-950/20 backdrop-blur-sm flex flex-col items-center justify-center pointer-events-none opacity-0 transition-opacity duration-200 z-30">
+                <i class="fa-solid fa-cloud-arrow-up text-5xl text-cyan-400 mb-3 animate-bounce"></i>
+                <p class="text-lg font-bold text-white">Drop FBX or GLB/GLTF Model Here</p>
+                <p class="text-xs text-slate-400 mt-1">Automatic texture extraction and color calibration for FBX & GLB</p>
+            </div>
+
+            <div class="absolute top-4 left-4 flex items-center gap-1.5 z-10 glass-panel p-1 rounded-xl border border-slate-800">
+                <button onclick="setCameraView('front')" class="px-2.5 py-1 text-[11px] rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition" title="Front View">Front</button>
+                <button onclick="setCameraView('top')" class="px-2.5 py-1 text-[11px] rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition" title="Top View">Top</button>
+                <button onclick="setCameraView('side')" class="px-2.5 py-1 text-[11px] rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition" title="Side View">Side</button>
+                <button onclick="setCameraView('iso')" class="px-2.5 py-1 text-[11px] rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition" title="Isometric View">Iso</button>
+                <button onclick="resetCamera()" class="px-2.5 py-1 text-[11px] rounded-lg bg-cyan-600/80 hover:bg-cyan-600 text-white transition flex items-center gap-1" title="Focus Model">
+                    <i class="fa-solid fa-crosshairs text-[10px]"></i> Focus
+                </button>
+            </div>
+
+            <div id="animPlayerBar" class="absolute bottom-4 left-1/2 -translate-x-1/2 glass-panel px-4 py-2.5 rounded-2xl flex items-center gap-3 shadow-2xl border border-slate-800 z-20 hidden max-w-lg w-[90%] sm:w-auto">
+                <button onclick="togglePlayPauseAnim()" id="btnPlayAnim" class="w-8 h-8 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 flex items-center justify-center font-bold transition">
+                    <i class="fa-solid fa-play text-xs" id="iconPlayAnim"></i>
+                </button>
+                
+                <div class="flex flex-col gap-0.5 min-w-[140px] flex-1">
+                    <div class="flex justify-between items-center text-[10px] text-slate-400 font-mono">
+                        <span id="animTimeCurrent">0.0s</span>
+                        <span id="animTimeTotal">0.0s</span>
+                    </div>
+                    <input type="range" id="animProgress" min="0" max="100" value="0" step="0.1" oninput="scrubAnimation(this.value)" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+                </div>
+
+                <div class="flex items-center gap-2 border-l border-slate-800 pl-3">
+                    <i class="fa-solid fa-film text-slate-400 text-xs"></i>
+                    <select id="animSelect" onchange="selectAnimation(this.value)" class="bg-slate-900 border border-slate-700 text-xs rounded-lg px-2 py-1 text-slate-200 outline-none max-w-[120px]">
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <aside id="sidebar" class="w-80 glass-panel border-l border-slate-800/80 flex flex-col z-20 shrink-0">
+            <div class="p-3 border-b border-slate-800">
+                <div class="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
+                    <button onclick="switchTab('display')" id="tab-display" class="tab-btn flex-1 py-1.5 text-xs font-medium rounded-lg bg-cyan-600 text-white transition">Display</button>
+                    <button onclick="switchTab('textures')" id="tab-textures" class="tab-btn flex-1 py-1.5 text-xs font-medium rounded-lg text-slate-400 hover:text-slate-200 transition">Textures</button>
+                    <button onclick="switchTab('lighting')" id="tab-lighting" class="tab-btn flex-1 py-1.5 text-xs font-medium rounded-lg text-slate-400 hover:text-slate-200 transition">Studio</button>
+                    <button onclick="switchTab('stats')" id="tab-stats" class="tab-btn flex-1 py-1.5 text-xs font-medium rounded-lg text-slate-400 hover:text-slate-200 transition">Inspect</button>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 space-y-5 text-xs">
+
+                <!-- TAB 1: DISPLAY & MATERIAL MODES -->
+                <div id="content-display" class="tab-content space-y-5">
+                    <div class="space-y-2">
+                        <label class="text-slate-400 font-semibold tracking-wider uppercase text-[10px] flex items-center justify-between">
+                            <span>Material Shading</span>
+                            <i class="fa-solid fa-eye text-slate-500"></i>
+                        </label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="setRenderMode('standard')" class="render-mode-btn p-2 rounded-xl bg-slate-800 border border-cyan-500/50 text-cyan-300 flex items-center gap-2 text-left" data-mode="standard">
+                                <i class="fa-solid fa-cube"></i> Textured / PBR
+                            </button>
+                            <button onclick="setRenderMode('unlit')" class="render-mode-btn p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 hover:bg-slate-800 flex items-center gap-2 text-left" data-mode="unlit">
+                                <i class="fa-solid fa-sun-plant-wilt"></i> Unlit / Albedo
+                            </button>
+                            <button onclick="setRenderMode('ambientPBR')" class="render-mode-btn p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 hover:bg-slate-800 flex items-center gap-2 text-left" data-mode="ambientPBR">
+                                <i class="fa-solid fa-sun"></i> Ambient PBR
+                            </button>
+                            <button onclick="setRenderMode('wireframe')" class="render-mode-btn p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 hover:bg-slate-800 flex items-center gap-2 text-left" data-mode="wireframe">
+                                <i class="fa-solid fa-border-all"></i> Wireframe
+                            </button>
+                            <button onclick="setRenderMode('normals')" class="render-mode-btn p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 hover:bg-slate-800 flex items-center gap-2 text-left" data-mode="normals">
+                                <i class="fa-solid fa-dharmachakra"></i> Surface Normals
+                            </button>
+                            <button onclick="setRenderMode('glass')" class="render-mode-btn p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 hover:bg-slate-800 flex items-center gap-2 text-left" data-mode="glass">
+                                <i class="fa-solid fa-glass-water"></i> Refractive Glass
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-slate-400 font-semibold tracking-wider uppercase text-[10px]">Helpers & Guides</label>
+                        <div class="space-y-1.5 bg-slate-900/50 p-3 rounded-xl border border-slate-800/80">
+                            <label class="flex items-center justify-between cursor-pointer py-1">
+                                <span class="text-slate-300">Ground Grid</span>
+                                <input type="checkbox" id="chkGrid" checked onchange="toggleGrid(this.checked)" class="rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-0 cursor-pointer">
+                            </label>
+                            <label class="flex items-center justify-between cursor-pointer py-1 border-t border-slate-800/60">
+                                <span class="text-slate-300">Axes Gizmo (X/Y/Z)</span>
+                                <input type="checkbox" id="chkAxes" checked onchange="toggleAxes(this.checked)" class="rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-0 cursor-pointer">
+                            </label>
+                            <label class="flex items-center justify-between cursor-pointer py-1 border-t border-slate-800/60">
+                                <span class="text-slate-300">Bounding Box</span>
+                                <input type="checkbox" id="chkBBox" onchange="toggleBoundingBox(this.checked)" class="rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-0 cursor-pointer">
+                            </label>
+                            <label class="flex items-center justify-between cursor-pointer py-1 border-t border-slate-800/60">
+                                <span class="text-slate-300">Floor Shadow</span>
+                                <input type="checkbox" id="chkShadow" checked onchange="toggleShadows(this.checked)" class="rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-0 cursor-pointer">
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 bg-slate-900/50 p-3 rounded-xl border border-slate-800/80">
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-300 font-medium">Turntable Auto-Rotate</span>
+                            <input type="checkbox" id="chkAutoRotate" onchange="setAutoRotate(this.checked)" class="rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-0 cursor-pointer">
+                        </div>
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-[11px] text-slate-400">
+                                <span>Rotation Speed</span>
+                                <span id="speedVal" class="text-cyan-400 font-mono">2.0</span>
+                            </div>
+                            <input type="range" id="sliderSpeed" min="0.5" max="10" step="0.5" value="2.0" oninput="updateRotateSpeed(this.value)" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 bg-slate-900/50 p-3 rounded-xl border border-slate-800/80">
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-400 font-semibold tracking-wider uppercase text-[10px]">Surface Parameters</span>
+                            <button onclick="reduceRoughness(0.2)" class="px-2 py-0.5 rounded-md bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-[10px] flex items-center gap-1 transition" title="Reduce Roughness by 0.2">
+                                <i class="fa-solid fa-sparkles text-[9px]"></i> Polish Surface (-0.2)
+                            </button>
+                        </div>
+                        
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-[11px] text-slate-400">
+                                <span>Roughness</span>
+                                <span id="roughnessVal" class="text-cyan-400 font-mono">0.30</span>
+                            </div>
+                            <input type="range" id="sliderRoughness" min="0" max="1" step="0.05" value="0.3" oninput="updateMaterialParam('roughness', this.value)" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                        </div>
+
+                        <div class="grid grid-cols-4 gap-1.5 pt-1">
+                            <button onclick="setRoughnessValue(0.05)" class="py-1 text-[10px] rounded bg-slate-800/80 hover:bg-cyan-600/30 text-slate-300 hover:text-cyan-300 border border-slate-700/60 transition" title="High Gloss">Gloss</button>
+                            <button onclick="setRoughnessValue(0.20)" class="py-1 text-[10px] rounded bg-slate-800/80 hover:bg-cyan-600/30 text-slate-300 hover:text-cyan-300 border border-slate-700/60 transition" title="Smooth Surface">Smooth</button>
+                            <button onclick="setRoughnessValue(0.50)" class="py-1 text-[10px] rounded bg-slate-800/80 hover:bg-cyan-600/30 text-slate-300 hover:text-cyan-300 border border-slate-700/60 transition" title="Satin Finish">Satin</button>
+                            <button onclick="setRoughnessValue(0.85)" class="py-1 text-[10px] rounded bg-slate-800/80 hover:bg-cyan-600/30 text-slate-300 hover:text-cyan-300 border border-slate-700/60 transition" title="Matte Surface">Matte</button>
+                        </div>
+
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-[11px] text-slate-400">
+                                <span>Metalness</span>
+                                <span id="metalnessVal" class="text-cyan-400 font-mono">0.80</span>
+                            </div>
+                            <input type="range" id="sliderMetalness" min="0" max="1" step="0.05" value="0.8" oninput="updateMaterialParam('metalness', this.value)" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                        </div>
+
+                        <div class="flex items-center justify-between pt-1">
+                            <span class="text-slate-300">Base Tint Color</span>
+                            <input type="color" id="materialColor" value="#ffffff" onchange="updateMaterialColor(this.value)" class="w-8 h-8 rounded-lg border-0 bg-transparent cursor-pointer">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 2: TEXTURES & MAPS ASSIGNER -->
+                <div id="content-textures" class="tab-content hidden space-y-4">
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-400 font-semibold tracking-wider uppercase text-[10px]">Auto-Detected Textures</span>
+                            <span id="extractedCountBadge" class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 font-mono">0 Found</span>
+                        </div>
+                        <div id="extractedTexturesContainer" class="p-2 bg-slate-900/60 rounded-xl border border-slate-800 text-[11px] text-slate-400 flex flex-col gap-2 min-h-[60px]">
+                            <p id="noExtractedMsg" class="text-center py-3 text-slate-500 text-xs">No model loaded yet or model has no embedded textures.</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+                        <span class="text-slate-400 font-semibold tracking-wider uppercase text-[10px]">Override Map Slots</span>
+                        <span class="text-[10px] text-cyan-400">Custom Texture Slots</span>
+                    </div>
+
+                    <div class="space-y-2">
+                        <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                            <div class="flex items-center gap-2.5">
+                                <div id="thumb-map" class="w-9 h-9 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden">
+                                    <i class="fa-solid fa-image text-slate-500 text-xs"></i>
+                                </div>
+                                <div>
+                                    <span class="font-medium text-slate-200 block text-xs">Base Color / Diffuse</span>
+                                    <span id="status-map" class="text-[10px] text-slate-500">Default / Embedded</span>
+                                </div>
+                            </div>
+                            <label class="cursor-pointer px-2.5 py-1 text-[11px] rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 transition">
+                                Assign
+                                <input type="file" accept="image/*" class="hidden" onchange="assignCustomTexture('map', event)">
+                            </label>
+                        </div>
+
+                        <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                            <div class="flex items-center gap-2.5">
+                                <div id="thumb-normalMap" class="w-9 h-9 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden">
+                                    <i class="fa-solid fa-mountain text-purple-400 text-xs"></i>
+                                </div>
+                                <div>
+                                    <span class="font-medium text-slate-200 block text-xs">Normal Map</span>
+                                    <span id="status-normalMap" class="text-[10px] text-slate-500">None</span>
+                                </div>
+                            </div>
+                            <label class="cursor-pointer px-2.5 py-1 text-[11px] rounded-lg bg-slate-800 hover:bg-slate-700 text-purple-300 border border-slate-700 transition">
+                                Assign
+                                <input type="file" accept="image/*" class="hidden" onchange="assignCustomTexture('normalMap', event)">
+                            </label>
+                        </div>
+
+                        <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                            <div class="flex items-center gap-2.5">
+                                <div id="thumb-roughnessMap" class="w-9 h-9 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden">
+                                    <i class="fa-solid fa-circle-half-stroke text-amber-400 text-xs"></i>
+                                </div>
+                                <div>
+                                    <span class="font-medium text-slate-200 block text-xs">Roughness Map</span>
+                                    <span id="status-roughnessMap" class="text-[10px] text-slate-500">None</span>
+                                </div>
+                            </div>
+                            <label class="cursor-pointer px-2.5 py-1 text-[11px] rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition">
+                                Assign
+                                <input type="file" accept="image/*" class="hidden" onchange="assignCustomTexture('roughnessMap', event)">
+                            </label>
+                        </div>
+
+                        <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                            <div class="flex items-center gap-2.5">
+                                <div id="thumb-metalnessMap" class="w-9 h-9 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden">
+                                    <i class="fa-solid fa-shield text-slate-300 text-xs"></i>
+                                </div>
+                                <div>
+                                    <span class="font-medium text-slate-200 block text-xs">Metalness Map</span>
+                                    <span id="status-metalnessMap" class="text-[10px] text-slate-500">None</span>
+                                </div>
+                            </div>
+                            <label class="cursor-pointer px-2.5 py-1 text-[11px] rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+                                Assign
+                                <input type="file" accept="image/*" class="hidden" onchange="assignCustomTexture('metalnessMap', event)">
+                            </label>
+                        </div>
+
+                        <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                            <div class="flex items-center gap-2.5">
+                                <div id="thumb-bumpMap" class="w-9 h-9 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden">
+                                    <i class="fa-solid fa-wave-square text-emerald-400 text-xs"></i>
+                                </div>
+                                <div>
+                                    <span class="font-medium text-slate-200 block text-xs">Bump Map</span>
+                                    <span id="status-bumpMap" class="text-[10px] text-slate-500">None</span>
+                                </div>
+                            </div>
+                            <label class="cursor-pointer px-2.5 py-1 text-[11px] rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 transition">
+                                Assign
+                                <input type="file" accept="image/*" class="hidden" onchange="assignCustomTexture('bumpMap', event)">
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 bg-slate-900/50 p-3 rounded-xl border border-slate-800/80">
+                        <span class="text-slate-400 font-semibold tracking-wider uppercase text-[10px]">UV Repeat / Tiling</span>
+                        
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-[11px] text-slate-400">
+                                <span>Repeat U (Horizontal)</span>
+                                <span id="repeatUVal" class="text-cyan-400 font-mono">1.0</span>
+                            </div>
+                            <input type="range" id="sliderRepeatU" min="0.1" max="10" step="0.1" value="1.0" oninput="updateTextureUV()" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                        </div>
+
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-[11px] text-slate-400">
+                                <span>Repeat V (Vertical)</span>
+                                <span id="repeatVVal" class="text-cyan-400 font-mono">1.0</span>
+                            </div>
+                            <input type="range" id="sliderRepeatV" min="0.1" max="10" step="0.1" value="1.0" oninput="updateTextureUV()" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: LIGHTING & STUDIO ENVIRONMENT -->
+                <div id="content-lighting" class="tab-content hidden space-y-5">
+                    <div class="space-y-2">
+                        <label class="text-slate-400 font-semibold tracking-wider uppercase text-[10px]">Environment Setup</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="setLightingPreset('studio')" class="light-preset-btn p-2 rounded-xl bg-slate-800 border border-cyan-500/50 text-cyan-300 text-left flex items-center gap-2" data-env="studio">
+                                <i class="fa-solid fa-lightbulb"></i> Studio Neutral
+                            </button>
+                            <button onclick="setLightingPreset('sunset')" class="light-preset-btn p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 hover:bg-slate-800 text-left flex items-center gap-2" data-env="sunset">
+                                <i class="fa-solid fa-sun text-amber-500"></i> Warm Sunset
+                            </button>
+                            <button onclick="setLightingPreset('cyberpunk')" class="light-preset-btn p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 hover:bg-slate-800 text-left flex items-center gap-2" data-env="cyberpunk">
+                                <i class="fa-solid fa-bolt text-fuchsia-400"></i> Cyber Neon
+                            </button>
+                            <button onclick="setLightingPreset('forest')" class="light-preset-btn p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 hover:bg-slate-800 text-left flex items-center gap-2" data-env="forest">
+                                <i class="fa-solid fa-tree text-emerald-400"></i> Cool Ambient
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 bg-slate-900/50 p-3 rounded-xl border border-slate-800/80">
+                        <span class="text-slate-400 font-semibold tracking-wider uppercase text-[10px]">Light Intensity Controls</span>
+                        
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-[11px] text-slate-400">
+                                <span>Main Directional Light</span>
+                                <span id="keyLightVal" class="text-cyan-400 font-mono">1.2</span>
+                            </div>
+                            <input type="range" id="sliderKeyLight" min="0" max="4" step="0.1" value="1.2" oninput="updateLightIntensity('key', this.value)" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                        </div>
+
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-[11px] text-slate-400">
+                                <span>Secondary Fill Light</span>
+                                <span id="fillLightVal" class="text-cyan-400 font-mono">0.6</span>
+                            </div>
+                            <input type="range" id="sliderFillLight" min="0" max="3" step="0.1" value="0.6" oninput="updateLightIntensity('fill', this.value)" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                        </div>
+
+                        <div class="space-y-1">
+                            <div class="flex justify-between text-[11px] text-slate-400">
+                                <span>Ambient Light</span>
+                                <span id="ambientLightVal" class="text-cyan-400 font-mono">0.4</span>
+                            </div>
+                            <input type="range" id="sliderAmbientLight" min="0" max="2" step="0.1" value="0.4" oninput="updateLightIntensity('ambient', this.value)" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 bg-slate-900/50 p-3 rounded-xl border border-slate-800/80">
+                        <span class="text-slate-400 font-semibold tracking-wider uppercase text-[10px]">Viewport Backdrop</span>
+                        
+                        <div class="grid grid-cols-4 gap-2">
+                            <button onclick="setBgMode('dark')" class="p-2 rounded-lg bg-slate-950 border border-slate-700 text-center hover:border-cyan-500" title="Dark Void"></button>
+                            <button onclick="setBgMode('slate')" class="p-2 rounded-lg bg-slate-800 border border-slate-700 text-center hover:border-cyan-500" title="Slate Gray"></button>
+                            <button onclick="setBgMode('indigo')" class="p-2 rounded-lg bg-indigo-950 border border-slate-700 text-center hover:border-cyan-500" title="Indigo Night"></button>
+                            <button onclick="setBgMode('light')" class="p-2 rounded-lg bg-slate-200 border border-slate-700 text-center hover:border-cyan-500" title="Studio Light"></button>
+                        </div>
+
+                        <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+                            <span class="text-slate-300">Custom Background</span>
+                            <input type="color" id="bgColorPicker" value="#0a0f1d" onchange="setCustomBgColor(this.value)" class="w-8 h-8 rounded-lg border-0 bg-transparent cursor-pointer">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 4: INSPECT & METRICS -->
+                <div id="content-stats" class="tab-content hidden space-y-4">
+                    <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-800 space-y-3">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <span class="font-semibold text-slate-200 flex items-center gap-1.5">
+                                <i class="fa-solid fa-chart-pie text-cyan-400"></i> Model Details
+                            </span>
+                            <span id="modelNameBadge" class="text-[10px] px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 max-w-[120px] truncate">TorusKnot</span>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2.5 pt-1">
+                            <div class="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80">
+                                <span class="text-[10px] text-slate-400 uppercase tracking-wider block">Vertices</span>
+                                <span id="statVertices" class="text-base font-bold font-mono text-cyan-400">0</span>
+                            </div>
+                            <div class="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80">
+                                <span class="text-[10px] text-slate-400 uppercase tracking-wider block">Triangles</span>
+                                <span id="statFaces" class="text-base font-bold font-mono text-cyan-400">0</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1.5 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80 text-[11px]">
+                            <div class="flex justify-between items-center">
+                                <span class="text-slate-400">Mesh Objects:</span>
+                                <span id="statMeshCount" class="font-mono text-slate-200 font-semibold">1</span>
+                            </div>
+                            <div class="flex justify-between items-center border-t border-slate-800/60 pt-1">
+                                <span class="text-slate-400">Materials Detected:</span>
+                                <span id="statMatCount" class="font-mono text-slate-200 font-semibold">1</span>
+                            </div>
+                            <div class="flex justify-between items-center border-t border-slate-800/60 pt-1">
+                                <span class="text-slate-400">Animations Tracked:</span>
+                                <span id="statAnimCount" class="font-mono text-slate-200 font-semibold">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-800 space-y-3">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <span class="font-semibold text-slate-200 flex items-center gap-1.5">
+                                <i class="fa-solid fa-ruler-combined text-emerald-400"></i> Bounding Box
+                            </span>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2 font-mono text-center">
+                            <div class="bg-slate-950/60 p-2 rounded-lg border border-slate-800">
+                                <span class="text-[10px] text-red-400 block font-sans">Width (X)</span>
+                                <span id="dimX" class="text-xs text-slate-200 font-semibold">0.00</span>
+                            </div>
+                            <div class="bg-slate-950/60 p-2 rounded-lg border border-slate-800">
+                                <span class="text-[10px] text-emerald-400 block font-sans">Height (Y)</span>
+                                <span id="dimY" class="text-xs text-slate-200 font-semibold">0.00</span>
+                            </div>
+                            <div class="bg-slate-950/60 p-2 rounded-lg border border-slate-800">
+                                <span class="text-[10px] text-blue-400 block font-sans">Depth (Z)</span>
+                                <span id="dimZ" class="text-xs text-slate-200 font-semibold">0.00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900/70 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                        <span class="text-slate-400 font-semibold tracking-wider uppercase text-[10px]">Supported Formats</span>
+                        <div class="flex flex-wrap gap-1.5 pt-1">
+                            <span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] text-cyan-300 font-mono">FBX</span>
+                            <span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] text-cyan-300 font-mono">GLTF / GLB</span>
+                            <span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] text-slate-300 font-mono">OBJ</span>
+                            <span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] text-slate-300 font-mono">STL</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="p-3 border-t border-slate-800 bg-slate-950/50 flex items-center justify-between text-xs text-slate-400">
+                <button onclick="resetCamera()" class="hover:text-cyan-400 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-arrows-to-dot text-cyan-500"></i> Center Camera
+                </button>
+                <button onclick="resetAllSettings()" class="hover:text-rose-400 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-rotate-left"></i> Reset Defaults
+                </button>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Main JavaScript Studio Engine -->
+    <script src="app.js"></script>
+</body>
+</html>
