@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Model Studio - Multi-Format & Texture Inspector</title>
+    <title>Anna 3D Tour</title>
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -55,15 +55,18 @@
             </div>
             <div>
                 <h1 class="font-bold text-sm tracking-wide text-white flex items-center gap-2">
-                    NEXUS <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-normal">FBX & GLB Studio</span>
+                    Anna 3D Tour <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-normal">Anna Studio</span>
                 </h1>
-                <p class="text-[10px] text-slate-400 hidden sm:block">Automated Texture Extraction for FBX & GLB / GLTF 3D Models</p>
+                <p class="text-[10px] text-slate-400 hidden sm:block">a work of initatives</p>
             </div>
         </div>
 
         <!-- Sample Models Preset Selector -->
         <div class="hidden lg:flex items-center gap-1.5 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
             <span class="text-xs text-slate-400 px-2 font-medium">Presets:</span>
+            <div id="dynamicPresetContainer" class="flex items-center gap-1.5">
+                <!-- Preset buttons will be injected here automatically -->
+            </div>
             <button onclick="loadPreset('torusKnot')" class="preset-btn px-2.5 py-1 text-xs rounded-lg bg-slate-800 text-cyan-300 border border-slate-700/50 flex items-center gap-1.5 transition" data-preset="torusKnot">
                 <i class="fa-solid fa-infinity text-cyan-400"></i> Cyber Knot
             </button>
@@ -171,12 +174,8 @@
                             <i class="fa-solid fa-eye text-slate-500"></i>
                         </label>
                         <div class="grid grid-cols-2 gap-2">
-                            <button onclick="setRenderMode('standard')" class="render-mode-btn p-2 rounded-xl bg-slate-800 border border-cyan-500/50 text-cyan-300 flex items-center gap-2 text-left" data-mode="standard">
-                                <i class="fa-solid fa-cube"></i> Textured / PBR
-                            </button>
-                            <button onclick="setRenderMode('unlit')" class="render-mode-btn p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 hover:bg-slate-800 flex items-center gap-2 text-left" data-mode="unlit">
-                                <i class="fa-solid fa-sun-plant-wilt"></i> Unlit / Albedo
-                            </button>
+                            <button onclick="setRenderMode('standard')" class="render-mode-btn p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 hover:bg-slate-800 flex items-center gap-2 text-left" data-mode="standard">
+
                             <button onclick="setRenderMode('ambientPBR')" class="render-mode-btn p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 hover:bg-slate-800 flex items-center gap-2 text-left" data-mode="ambientPBR">
                                 <i class="fa-solid fa-sun"></i> Ambient PBR
                             </button>

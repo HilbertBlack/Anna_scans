@@ -1,0 +1,12 @@
+{
+  "models": [
+    {
+      "id": "1",
+      "name": "sports_board"
+    },
+    {
+      "id": "2",
+      "name": "red_building"
+    }
+  ]
+}

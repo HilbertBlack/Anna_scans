@@ -12,6 +12,7 @@ let isAnimPlaying = false;
 
 // File/Texture Cache for relative loading
 let loadedFilesMap = new Map();
+let availableModels = [];
 
 let modelParams = {
     wireframe: false,
@@ -20,7 +21,7 @@ let modelParams = {
     roughness: 0.3,
     metalness: 0.8,
     color: '#ffffff',
-    renderMode: 'standard',
+    renderMode: 'ambientPBR',
     lightingPreset: 'studio'
 };
 
@@ -45,10 +46,116 @@ window.onload = function() {
     //loadDefaultFBXModel(DEFAULT_MODEL_PATH, DEFAULT_MODEL_NAME);
     
     // Dynamically search and load from GitHub directory
-    autoLoadFromGitHubFolder();
+    // autoLoadFromGitHubFolder();
+
+    // Fetch model entries from root/models.json
+    fetchModelsAndInitPresets();
 
     animate();
 };
+
+/**
+ * Fetches models.json and constructs preset navigation
+ */
+async function fetchModelsAndInitPresets() {
+    showLoader(true, "Fetching model list (models.json)...");
+
+    try {
+        const response = await fetch('./models.json');
+        if (!response.ok) {
+            throw new Error(`Failed to load models.json (Status ${response.status})`);
+        }
+
+        const data = await response.json();
+        availableModels = data.models || [];
+
+        if (availableModels.length === 0) {
+            showToast("models.json is empty.");
+            showLoader(false);
+            return;
+        }
+
+        // Render preset buttons in the header
+        renderPresetButtons(availableModels);
+
+        // Auto-load the first model on startup
+        loadModelFromPreset(availableModels[0].id);
+
+    } catch (err) {
+        console.warn("Could not load models.json:", err);
+        showToast("Error reading models.json");
+        showLoader(false);
+    }
+}
+
+/**
+ * Generates preset buttons dynamically based on model names
+ */
+function renderPresetButtons(models) {
+    const container = document.getElementById('dynamicPresetContainer');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    models.forEach((model, index) => {
+        const btn = document.createElement('button');
+        btn.onclick = () => loadModelFromPreset(model.id);
+        btn.className = `preset-btn px-2.5 py-1 text-xs rounded-lg flex items-center gap-1.5 transition ${
+            index === 0 
+                ? 'bg-slate-800 text-cyan-300 border border-slate-700/50' 
+                : 'hover:bg-cyan-600/20 text-slate-400 hover:text-cyan-300 border border-transparent'
+        }`;
+        btn.dataset.presetId = model.id;
+
+        // Clean name display (replaces underscores with spaces for button text)
+        const displayName = model.name.replace(/_/g, ' ');
+        btn.innerHTML = `<i class="fa-solid fa-cube text-cyan-400"></i> ${displayName}`;
+
+        container.appendChild(btn);
+    });
+}
+
+/**
+ * Downloads and loads FBX from path: ./models/<model_name>/<model_name>.fbx
+ */
+async function loadModelFromPreset(modelId) {
+    const model = availableModels.find(m => m.id === modelId);
+    if (!model) return;
+
+    // Highlight active preset button
+    document.querySelectorAll('#dynamicPresetContainer .preset-btn').forEach(btn => {
+        if (btn.dataset.presetId === modelId) {
+            btn.classList.add('bg-slate-800', 'text-cyan-300', 'border-slate-700/50');
+            btn.classList.remove('border-transparent', 'text-slate-400');
+        } else {
+            btn.classList.remove('bg-slate-800', 'text-cyan-300', 'border-slate-700/50');
+            btn.classList.add('border-transparent', 'text-slate-400');
+        }
+    });
+
+    // Derive target path: ./models/<model_name>/<model_name>.fbx
+    const modelPath = `./models/${model.name}/${model.name}.fbx`;
+
+    showLoader(true, `Downloading ${model.name}...`);
+
+    try {
+        const response = await fetch(modelPath);
+        if (!response.ok) {
+            throw new Error(`File not found at ${modelPath}`);
+        }
+
+        const blob = await response.blob();
+        const modelFile = new File([blob], `${model.name}.fbx`);
+
+        // Load FBX through studio pipeline
+        loadFBXFile(modelFile);
+
+    } catch (err) {
+        showLoader(false);
+        console.error("Error loading FBX file:", err);
+        showToast(`Could not load ${model.name}.fbx from path`);
+    }
+}
 
 /**
  * Searches the GitHub repository /models directory via GitHub API 
