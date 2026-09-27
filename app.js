@@ -1071,6 +1071,48 @@ function setRenderMode(mode) {
     applyRenderMode();
 }
 
+let isMobileSidebarOpen = false;
+
+/**
+ * Toggles or explicitly sets the mobile sidebar open/closed state
+ */
+function toggleMobileSidebar(forceState = null) {
+    const sidebar = document.getElementById('sidebar');
+    const backdrop = document.getElementById('sidebarBackdrop');
+    const toggleIcon = document.getElementById('sidebarToggleIcon');
+
+    if (!sidebar || !backdrop) return;
+
+    if (forceState !== null) {
+        isMobileSidebarOpen = forceState;
+    } else {
+        isMobileSidebarOpen = !isMobileSidebarOpen;
+    }
+
+    if (isMobileSidebarOpen) {
+        // Open Mobile Sidebar Drawer
+        sidebar.classList.remove('translate-x-full');
+        backdrop.classList.remove('opacity-0', 'pointer-events-none');
+        backdrop.classList.add('opacity-100');
+        if (toggleIcon) toggleIcon.className = 'fa-solid fa-xmark text-sm';
+    } else {
+        // Close Mobile Sidebar Drawer
+        sidebar.classList.add('translate-x-full');
+        backdrop.classList.add('opacity-0', 'pointer-events-none');
+        backdrop.classList.remove('opacity-100');
+        if (toggleIcon) toggleIcon.className = 'fa-solid fa-sliders text-sm';
+    }
+}
+
+// Automatically close sidebar drawer when user selects a preset on mobile
+const originalLoadModelFromPreset = loadModelFromPreset;
+loadModelFromPreset = async function(modelId) {
+    if (window.innerWidth < 1024) {
+        toggleMobileSidebar(false);
+    }
+    await originalLoadModelFromPreset(modelId);
+};
+
 function applyRenderMode() {
     if (!currentModel) return;
 

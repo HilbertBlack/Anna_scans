@@ -50,3 +50,23 @@ body {
     border: 2px dashed #06b6d4 !important;
     background: rgba(6, 182, 212, 0.15) !important;
 }
+/* Mobile Sidebar Drawer Adjustments */
+@media (max-width: 1023px) {
+    #sidebar {
+        height: calc(100vh - 3.5rem);
+        box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+    }
+}
+
+/* Ensure touch targets feel clean on mobile screens */
+@media (max-width: 640px) {
+    .tab-btn {
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+    
+    .preset-btn {
+        padding-left: 0.625rem;
+        padding-right: 0.625rem;
+    }
+}

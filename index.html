@@ -93,6 +93,10 @@
             <button onclick="toggleFullscreen()" title="Toggle Fullscreen" class="glass-button text-xs p-2 rounded-lg text-slate-300 hover:text-white">
                 <i class="fa-solid fa-expand" id="fullscreenIcon"></i>
             </button>
+            <!-- Mobile Sidebar Toggle Hamburger Button -->
+            <button onclick="toggleMobileSidebar()" id="sidebarToggleBtn" title="Toggle Controls Menu" class="lg:hidden glass-button text-xs p-2.5 rounded-lg text-cyan-400 border-cyan-500/30 flex items-center gap-1.5">
+                <i class="fa-solid fa-sliders text-sm" id="sidebarToggleIcon"></i>
+            </button>
         </div>
     </header>
 
@@ -154,6 +158,12 @@
             </div>
         </div>
 
+        <!-- Mobile Backdrop Overlay -->
+        <div id="sidebarBackdrop" onclick="toggleMobileSidebar(false)" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-30 opacity-0 pointer-events-none transition-opacity duration-300 lg:hidden"></div>
+
+        <!-- Sidebar (Updated classes for slide-over drawer behavior on mobile) -->
+        <aside id="sidebar" class="fixed lg:relative right-0 top-14 bottom-0 w-80 glass-panel border-l border-slate-800/80 flex flex-col z-40 shrink-0 transform translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out">
+
         <aside id="sidebar" class="w-80 glass-panel border-l border-slate-800/80 flex flex-col z-20 shrink-0">
             <div class="p-3 border-b border-slate-800">
                 <div class="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
@@ -175,7 +185,8 @@
                         </label>
                         <div class="grid grid-cols-2 gap-2">
                             <button onclick="setRenderMode('standard')" class="render-mode-btn p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 hover:bg-slate-800 flex items-center gap-2 text-left" data-mode="standard">
-
+                                <i class="fa-solid fa-sun"></i> Standard
+                            </button>
                             <button onclick="setRenderMode('ambientPBR')" class="render-mode-btn p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 hover:bg-slate-800 flex items-center gap-2 text-left" data-mode="ambientPBR">
                                 <i class="fa-solid fa-sun"></i> Ambient PBR
                             </button>
